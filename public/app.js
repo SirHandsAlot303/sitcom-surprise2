@@ -16,6 +16,7 @@
   const percentClearBtn = document.getElementById('percent-clear');
 
   const favorites = new Map();
+  let lastSearchResults = new Map(); // id -> {id, name, poster}, populated on each search render
   let topPercent = 20;
   let topPercentIsAll = false;
 
@@ -73,26 +74,49 @@
   }
 
   function renderSearchResults(results) {
+    lastSearchResults = new Map();
     searchResults.innerHTML = results.filter(r => r.show && r.show.externals && r.show.externals.imdb).slice(0, 12).map(r => {
       const show = r.show; const imdbId = show.externals.imdb; const poster = show.image ? show.image.medium : '';
       const year = show.premiered ? show.premiered.slice(0, 4) : '?'; const isAdded = favorites.has(imdbId);
-      const safeName = escapeHtml(show.name); const safePoster = poster.replace(/'/g, '%27');
+      const safeName = escapeHtml(show.name); const safePoster = escapeHtml(poster);
+      lastSearchResults.set(imdbId, { id: imdbId, name: show.name, poster });
       return `
         <div class="show-card ${isAdded ? 'added' : ''}" data-id="${imdbId}">
-          <div class="poster-wrap">${poster ? `<img src="${poster}" alt="${safeName}" loading="lazy">` : '<div class="no-poster">No Image</div>'}</div>
+          <div class="poster-wrap">${poster ? `<img src="${safePoster}" alt="${safeName}" loading="lazy">` : '<div class="no-poster">No Image</div>'}</div>
           <div class="show-info"><span class="show-title">${safeName}</span><span class="show-year">${year}</span></div>
-          <button class="btn-add" onclick="window.__addShow('${imdbId}', '${safeName.replace(/'/g, "\\'")}', '${safePoster}')">${isAdded ? '✓ Added' : '+ Add'}</button>
+          <button type="button" class="btn-add" data-id="${imdbId}">${isAdded ? '✓ Added' : '+ Add'}</button>
         </div>`;
     }).join('');
   }
 
-  window.__addShow = function (id, name, poster) {
-    if (favorites.has(id)) favorites.delete(id);
-    else favorites.set(id, { id, name, poster });
+  // Event delegation: no more inline onclick="" strings built from show names/posters.
+  // (That was the bug — HTML-escaped quotes in a show's name, e.g. "Bob's Burgers",
+  // get decoded back to a literal ' before the inline handler runs, breaking the JS
+  // and silently disabling that button.) Looking data up by data-id avoids the whole class of bug.
+  searchResults.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-add');
+    if (!btn) return;
+    const item = lastSearchResults.get(btn.dataset.id);
+    if (!item) return;
+    toggleFavorite(item);
+  });
+
+  favoritesList.addEventListener('click', (e) => {
+    const btn = e.target.closest('.btn-remove');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    const item = favorites.get(id);
+    if (!item) return;
+    toggleFavorite(item);
+  });
+
+  function toggleFavorite(item) {
+    if (favorites.has(item.id)) favorites.delete(item.id);
+    else favorites.set(item.id, { id: item.id, name: item.name, poster: item.poster });
     renderFavorites();
     const q = searchInput.value.trim(); if (q.length >= 2) searchShows(q);
     updateInstallBtn();
-  };
+  }
 
   function renderFavorites() {
     if (favorites.size === 0) {
@@ -102,9 +126,9 @@
     showCount.textContent = favorites.size;
     favoritesList.innerHTML = Array.from(favorites.values()).map(show => `
       <div class="show-card favorite" data-id="${show.id}">
-        <div class="poster-wrap">${show.poster ? `<img src="${show.poster}" alt="${escapeHtml(show.name)}" loading="lazy">` : '<div class="no-poster">No Image</div>'}</div>
+        <div class="poster-wrap">${show.poster ? `<img src="${escapeHtml(show.poster)}" alt="${escapeHtml(show.name)}" loading="lazy">` : '<div class="no-poster">No Image</div>'}</div>
         <div class="show-info"><span class="show-title">${escapeHtml(show.name)}</span></div>
-        <button class="btn-remove" onclick="window.__addShow('${show.id}', '${escapeHtml(show.name).replace(/'/g, "\\'")}', '${show.poster}')">✕ Remove</button>
+        <button type="button" class="btn-remove" data-id="${show.id}">✕ Remove</button>
       </div>`).join('');
   }
 
