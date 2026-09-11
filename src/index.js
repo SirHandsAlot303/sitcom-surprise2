@@ -10,7 +10,39 @@ const app = express();
 const ADDON_ID = 'org.stremio.sitcomsurprise';
 const ADDON_NAME = 'Sitcom Surprise';
 const ADDON_VERSION = '5.0.0';
-const DEFAULT_CFG = { shows: [{ id: 'tt0898266', name: 'The Big Bang Theory' }], topPercent: 100 };
+const DEFAULT_CFG = { lists: [{ shows: [{ id: 'tt0898266', name: 'The Big Bang Theory' }], topPercent: 100 }] };
+
+// One addon install can expose several named lists (e.g. "Me" / "Wife"),
+// each rendered as its own catalog row in Stremio's Discover/Board — same
+// idea as an addon showing "Decade - 1990s" and "Decade - 2000s" as
+// separate rows. A single-list config keeps the original catalog id
+// ('shuffle') and item ids so existing single-person installs/links are
+// unaffected; multi-list configs get one 'shuffle-<index>' catalog per list.
+function getLists(cfg) {
+  return (cfg && Array.isArray(cfg.lists) && cfg.lists.length) ? cfg.lists : DEFAULT_CFG.lists;
+}
+function catalogIdForList(lists, index) {
+  return lists.length > 1 ? `shuffle-${index}` : 'shuffle';
+}
+function surpriseIdForList(lists, index) {
+  return lists.length > 1 ? `shuffle:surprise:${index}` : 'shuffle:surprise';
+}
+function listIndexFromCatalogId(lists, catalogId) {
+  if (lists.length === 1) return 0;
+  const m = /^shuffle-(\d+)$/.exec(catalogId || '');
+  if (m) {
+    const i = parseInt(m[1], 10);
+    if (i >= 0 && i < lists.length) return i;
+  }
+  return 0;
+}
+function listIndexFromSurpriseId(lists, id) {
+  const m = /^shuffle:surprise(?::(\d+))?$/.exec(id || '');
+  if (!m) return null;
+  if (m[1] == null) return 0;
+  const i = parseInt(m[1], 10);
+  return (i >= 0 && i < lists.length) ? i : 0;
+}
 
 function getLogoUrl(req) {
   const fallback = 'https://sitcom-surprise.vercel.app/logo.png';
@@ -51,11 +83,15 @@ app.param('config', (req, res, next, configParam) => {
 
 function buildManifest(cfg, req) {
   const logo = getLogoUrl(req);
+  const lists = getLists(cfg);
+  const multi = lists.length > 1;
   return {
     id: ADDON_ID,
     version: ADDON_VERSION,
     name: ADDON_NAME,
-    description: `One tile per show. One click = surprise random episode from ${cfg.topPercent === 100 ? 'all episodes' : `top ${cfg.topPercent}% by rating`}.`,
+    description: multi
+      ? `One tile per show, one row per list (${lists.map(l => l.label || 'Unnamed').join(', ')}). One click = surprise random episode.`
+      : `One tile per show. One click = surprise random episode from ${lists[0].topPercent === 100 ? 'all episodes' : `top ${lists[0].topPercent}% by rating`}.`,
     logo,
     resources: [
       'catalog',
@@ -64,7 +100,11 @@ function buildManifest(cfg, req) {
     ],
     types: ['series'],
     idPrefixes: ['shuffle:'],
-    catalogs: [{ type: 'series', id: 'shuffle', name: ADDON_NAME }],
+    catalogs: lists.map((list, i) => ({
+      type: 'series',
+      id: catalogIdForList(lists, i),
+      name: list.label ? `${ADDON_NAME} — ${list.label}` : (multi ? `${ADDON_NAME} ${i + 1}` : ADDON_NAME),
+    })),
     behaviorHints: { configurable: true, configurationRequired: false },
     stremioAddonsConfig: {
       issuer: 'https://stremio-addons.net',
@@ -93,9 +133,13 @@ function getSurprisePosterUrl(req) {
 
 function catalogHandler(req, res) {
   const cfg = req.addonConfig || DEFAULT_CFG;
+  const lists = getLists(cfg);
+  const listIndex = listIndexFromCatalogId(lists, req.params.id);
+  const list = lists[listIndex];
+
   const extra = parseExtra(req.params.extra);
   const search = (extra.search || '').toLowerCase();
-  let filtered = cfg.shows;
+  let filtered = list.shows;
   if (search) filtered = filtered.filter(s => s.name.toLowerCase().includes(search));
   const skip = parseInt(extra.skip || '0', 10) || 0;
   const paged = filtered.slice(skip, skip + 100);
@@ -107,7 +151,7 @@ function catalogHandler(req, res) {
     poster: `https://images.metahub.space/poster/medium/${show.id}/img.jpg`,
     background: `https://images.metahub.space/background/medium/${show.id}/img.jpg`,
     logo: `https://images.metahub.space/logo/medium/${show.id}/img.png`,
-    description: `🎲 Surprise! One click → random ${cfg.topPercent === 100 ? 'episode' : `top ${cfg.topPercent}% episode`} of ${show.name}`,
+    description: `🎲 Surprise! One click → random ${list.topPercent === 100 ? 'episode' : `top ${list.topPercent}% episode`} of ${show.name}`,
     posterShape: 'poster',
     behaviorHints: { defaultVideoId: null },
   }));
@@ -115,7 +159,7 @@ function catalogHandler(req, res) {
   // Prepend the Surprise tile on the first page
   if (skip === 0 && (!search || '🎲 surprise'.includes(search))) {
     const surpriseTile = {
-      id: 'shuffle:surprise',
+      id: surpriseIdForList(lists, listIndex),
       type: 'series',
       name: '🎲 Surprise',
       poster: getSurprisePosterUrl(req),
@@ -129,7 +173,7 @@ function catalogHandler(req, res) {
   }
 
   res.json({ metas });
-  for (const show of paged) getTopEpisodes(show.id, cfg.topPercent).catch(() => {});
+  for (const show of paged) getTopEpisodes(show.id, list.topPercent).catch(() => {});
 }
 
 async function handleMeta(req, res) {
@@ -138,22 +182,26 @@ async function handleMeta(req, res) {
     try { return decodeURIComponent(rawId); } catch { return rawId; }
   })();
 
-  let cfg = req.addonConfig || DEFAULT_CFG;
+  const cfg = req.addonConfig || DEFAULT_CFG;
+  const lists = getLists(cfg);
 
-  // --- Surprise tile: pick a random show, then a random episode ---
-  if (decodedId === 'shuffle:surprise' || decodedId === 'shuffle%3Asurprise') {
-    const shows = cfg.shows || [];
+  // --- Surprise tile: pick a random show from ITS list, then a random episode ---
+  const surpriseListIndex = listIndexFromSurpriseId(lists, decodedId) ?? listIndexFromSurpriseId(lists, rawId);
+  if (surpriseListIndex !== null) {
+    const list = lists[surpriseListIndex];
+    const surpriseId = surpriseIdForList(lists, surpriseListIndex);
+    const shows = list.shows || [];
     if (shows.length === 0) return res.json({ meta: null });
     const show = shows[Math.floor(Math.random() * shows.length)];
 
     try {
-      const episode = await pickRandomEpisode(show.id, cfg.topPercent || 100);
+      const episode = await pickRandomEpisode(show.id, list.topPercent || 100);
       const videoId = `${show.id}:${episode.season}:${episode.number}`;
       const epLabel = `S${String(episode.season).padStart(2, '0')}E${String(episode.number).padStart(2, '0')}`;
 
       return res.json({
         meta: {
-          id: 'shuffle:surprise',
+          id: surpriseId,
           type: 'series',
           name: '🎲 Surprise',
           poster: `https://images.metahub.space/poster/medium/${show.id}/img.jpg`,
@@ -181,7 +229,7 @@ async function handleMeta(req, res) {
       const fallbackVideoId = `${show.id}:1:1`;
       return res.json({
         meta: {
-          id: 'shuffle:surprise',
+          id: surpriseId,
           type: 'series',
           name: '🎲 Surprise',
           poster: `https://images.metahub.space/poster/medium/${show.id}/img.jpg`,
@@ -206,7 +254,7 @@ async function handleMeta(req, res) {
     }
   }
 
-  // --- Per-show tile: existing behavior ---
+  // --- Per-show tile: search across all lists (a show's own id is unique regardless of which list/row it was clicked from) ---
   const imdbMatch = decodedId.match(/(shuffle:)(tt\d+)/);
   const imdbId = imdbMatch ? imdbMatch[2] : null;
 
@@ -215,14 +263,19 @@ async function handleMeta(req, res) {
     return res.json({ meta: null });
   }
 
-  let show = cfg.shows ? cfg.shows.find(s => s.id === imdbId) : null;
+  let show = null;
+  let topPercent = 100;
+  for (const list of lists) {
+    const found = (list.shows || []).find(s => s.id === imdbId);
+    if (found) { show = found; topPercent = list.topPercent || 100; break; }
+  }
   if (!show) {
     console.warn(`[Meta] Show ${imdbId} not in config, returning null`);
     return res.json({ meta: null });
   }
 
   try {
-    const episode = await pickRandomEpisode(imdbId, cfg.topPercent || 100);
+    const episode = await pickRandomEpisode(imdbId, topPercent);
     const videoId = `${imdbId}:${episode.season}:${episode.number}`;
     const epLabel = `S${String(episode.season).padStart(2, '0')}E${String(episode.number).padStart(2, '0')}`;
 
@@ -234,7 +287,7 @@ async function handleMeta(req, res) {
         poster: `https://images.metahub.space/poster/medium/${imdbId}/img.jpg`,
         background: `https://images.metahub.space/background/medium/${imdbId}/img.jpg`,
         logo: `https://images.metahub.space/logo/medium/${imdbId}/img.png`,
-        description: `🎲 Surprise — ${cfg.topPercent === 100 ? 'All episodes' : `Top ${cfg.topPercent}%`} · ${epLabel} — ${episode.name}${episode.rating != null ? ` (★${episode.rating})` : ''}. New surprise every open!`,
+        description: `🎲 Surprise — ${topPercent === 100 ? 'All episodes' : `Top ${topPercent}%`} · ${epLabel} — ${episode.name}${episode.rating != null ? ` (★${episode.rating})` : ''}. New surprise every open!`,
         releaseInfo: `${episode.season}`,
         imdbRating: episode.rating != null ? String(episode.rating) : undefined,
         behaviorHints: { defaultVideoId: videoId },
@@ -245,7 +298,7 @@ async function handleMeta(req, res) {
             season: episode.season,
             number: episode.number,
             episode: episode.number,
-            overview: `Surprise pick from ${cfg.topPercent === 100 ? 'all episodes' : `top ${cfg.topPercent}%`}. ${show.name} ${epLabel}: ${episode.name}`,
+            overview: `Surprise pick from ${topPercent === 100 ? 'all episodes' : `top ${topPercent}%`}. ${show.name} ${epLabel}: ${episode.name}`,
             released: '2020-01-01T00:00:00.000Z',
           },
         ],
@@ -291,8 +344,8 @@ app.get('/manifest.json', (req, res) => {
 });
 app.get('/:config/manifest.json', (req, res) => {
   res.json(buildManifest(req.addonConfig, req));
-  for (const show of req.addonConfig.shows) {
-    getTopEpisodes(show.id, req.addonConfig.topPercent).catch(() => {});
+  for (const list of getLists(req.addonConfig)) {
+    for (const show of list.shows) getTopEpisodes(show.id, list.topPercent).catch(() => {});
   }
 });
 app.get('/:config/manifest', (req, res) => res.json(buildManifest(req.addonConfig, req)));
