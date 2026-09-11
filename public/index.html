@@ -16,7 +16,7 @@
       <div class="logo-wrap" id="logo-wrap"><div class="logo-placeholder">🎁</div></div>
       <h1>Sitcom Surprise</h1>
       <p class="tagline">One tile. One click. Surprise episode.</p>
-      <p class="hint" style="max-width:640px;margin:10px auto 0">Persistent 30-day cache — load once, instant after. Top % filter: leave empty for 100% all episodes.</p>
+      <p class="hint" style="max-width:640px;margin:10px auto 0">Persistent 30-day cache — load once, instant after. Building more than one list? Each becomes its own row in Stremio, all from a single install.</p>
     </header>
 
     <section class="card" id="search-section">
@@ -26,7 +26,10 @@
     </section>
 
     <section class="card" id="favorites-section">
-      <h2>2. My Surprise List <span class="badge" id="show-count">0</span></h2>
+      <h2>2. Current List <span class="badge" id="show-count">0</span></h2>
+      <div class="percent-row" style="margin-bottom:1.2rem">
+        <input type="text" id="label-input" placeholder="List name (optional) — e.g. Me, Wife, Kids..." maxlength="40" style="flex:2;min-width:180px">
+      </div>
       <div id="favorites-list" class="favorites-grid">
         <p class="empty-state">Loading examples...</p>
       </div>
@@ -34,7 +37,7 @@
 
     <section class="card" id="percent-section">
       <h2>3. Top % Filter (by IMDb rating)</h2>
-      <p class="hint">Top 20% = best 20% episodes by rating. Leave empty for 100% (fully random).</p>
+      <p class="hint">Applies to this list only. Top 20% = best 20% episodes by rating. Leave empty for 100% (fully random).</p>
       <div class="percent-row">
         <input type="range" id="percent-slider" min="1" max="100" value="20">
         <input type="number" id="percent-input" min="1" max="100" value="20" placeholder="20">
@@ -44,11 +47,18 @@
       <div class="percent-label"><span id="percent-desc">Top 20% — highest rated episodes</span></div>
     </section>
 
+    <section class="card" id="multilist-section">
+      <h2>4. Multiple Lists <span class="hint" style="font-weight:400">(optional)</span></h2>
+      <p class="hint">Want a separate row for someone else (e.g. your wife's shows)? Save the current list, then build another. Both install together as one addon, each showing up as its own row.</p>
+      <button id="save-list-btn" class="btn-small">💾 Save this list &amp; start a new one</button>
+      <div id="saved-lists" class="saved-lists"></div>
+    </section>
+
     <section class="card action-card" id="install-section">
-      <h2>4. Install Addon</h2>
+      <h2>5. Install Addon</h2>
       <button id="install-btn" class="btn-primary" disabled>Generate Install Link</button>
       <div id="install-output" class="install-output hidden">
-        <p>Addon ready! Single row, single tile per show, single click surprise.</p>
+        <p id="install-output-msg">Addon ready!</p>
         <a id="install-link" class="btn-install" href="#" target="_blank">🚀 Install in Stremio</a>
         <div class="url-box">
           <input type="text" id="install-url" readonly>
