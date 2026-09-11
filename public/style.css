@@ -72,6 +72,11 @@ input:focus{border-color:rgba(139,92,246,.5);box-shadow:0 0 0 2px var(--accent-g
 .hidden{display:none!important}
 .error{color:#f87171;font-size:.9rem;margin-top:.5rem;min-height:1.35rem}
 .empty-state{grid-column:1/-1;text-align:center;color:var(--muted);font-style:italic;padding:2rem 0}
+.saved-lists{margin-top:1rem;display:flex;flex-direction:column;gap:.6rem}
+.saved-list-chip{display:flex;align-items:center;justify-content:space-between;gap:.8rem;background:rgba(255,255,255,.05);border:1px solid var(--card-border);border-radius:var(--r-md);padding:.8rem 1rem}
+.saved-list-chip .chip-info{font-weight:500}
+.saved-list-chip .chip-meta{color:var(--muted);font-weight:400;font-size:.85rem;margin-left:.5rem}
+.saved-list-chip .btn-remove{width:auto;padding:.4rem .8rem;border-radius:var(--r-sm)}
 @keyframes fadeIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:480px){
 .container{padding:1rem}
