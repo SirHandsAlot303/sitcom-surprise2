@@ -7,8 +7,8 @@
   <meta name="description" content="One tile per show. One click = surprise random episode.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
-  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="icon" type="image/png" href="/logo.png">
 </head>
 <body>
   <div class="container">
@@ -73,12 +73,12 @@
     (function(){
       const wrap = document.getElementById('logo-wrap');
       const img = new Image();
-      img.src = 'logo.png';
+      img.src = '/logo.png';
       img.alt = 'Sitcom Surprise';
       img.className = 'hero-logo';
       img.onload = () => { wrap.innerHTML = ''; wrap.appendChild(img); };
     })();
   </script>
-  <script src="app.js"></script>
+  <script src="/app.js"></script>
 </body>
 </html>
