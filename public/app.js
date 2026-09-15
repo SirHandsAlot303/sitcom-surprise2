@@ -193,7 +193,7 @@
     else savedLists.splice(idx, 1);
 
     favorites.clear();
-    for (const s of target.shows) favorites.set(s.id, { id: s.id, name: s.name, poster: '' });
+    for (const s of target.shows) favorites.set(s.id, { id: s.id, name: s.name, poster: posterUrlFor(s.id) });
     labelInput.value = target.label || '';
     setTopPercent(target.topPercent === 100 ? null : target.topPercent, target.topPercent === 100);
 
@@ -251,6 +251,15 @@
 
   function escapeHtml(str) { if (!str) return ''; return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;'); }
 
+  // Only the show id + name are stored in the config (to keep install links
+  // short) — no poster URL. When loading shows back in from a saved config
+  // (URL restore or Edit), reconstruct the poster from the id using the same
+  // predictable metahub.space pattern the backend already uses, instead of
+  // showing "No Image".
+  function posterUrlFor(imdbId) {
+    return `https://images.metahub.space/poster/medium/${imdbId}/img.jpg`;
+  }
+
   function base64UrlDecodeUtf8(str) {
     const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
     const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
@@ -275,7 +284,7 @@
       }));
       const active = lists[lists.length - 1];
       favorites.clear();
-      for (const s of (active.shows || [])) favorites.set(s.id, { id: s.id, name: s.name, poster: '' });
+      for (const s of (active.shows || [])) favorites.set(s.id, { id: s.id, name: s.name, poster: posterUrlFor(s.id) });
       labelInput.value = active.label || '';
       setTopPercent(active.topPercent === 100 ? null : active.topPercent, active.topPercent === 100);
 
