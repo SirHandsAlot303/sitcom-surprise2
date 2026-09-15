@@ -166,14 +166,42 @@
   });
 
   savedListsEl.addEventListener('click', (e) => {
-    const btn = e.target.closest('.btn-remove');
-    if (!btn) return;
-    const idx = parseInt(btn.dataset.index, 10);
-    if (Number.isNaN(idx)) return;
-    savedLists.splice(idx, 1);
+    const removeBtn = e.target.closest('.btn-remove');
+    const editBtn = e.target.closest('.btn-edit');
+    if (removeBtn) {
+      const idx = parseInt(removeBtn.dataset.index, 10);
+      if (Number.isNaN(idx)) return;
+      savedLists.splice(idx, 1);
+      renderSavedLists();
+      updateInstallBtn();
+      return;
+    }
+    if (editBtn) {
+      const idx = parseInt(editBtn.dataset.index, 10);
+      if (Number.isNaN(idx)) return;
+      editSavedList(idx);
+    }
+  });
+
+  function editSavedList(idx) {
+    const target = savedLists[idx];
+    if (!target) return;
+
+    // Whatever's currently being built goes back into savedLists (same slot)
+    // so switching to edit another list never loses in-progress work.
+    if (favorites.size > 0) savedLists[idx] = currentListSnapshot();
+    else savedLists.splice(idx, 1);
+
+    favorites.clear();
+    for (const s of target.shows) favorites.set(s.id, { id: s.id, name: s.name, poster: '' });
+    labelInput.value = target.label || '';
+    setTopPercent(target.topPercent === 100 ? null : target.topPercent, target.topPercent === 100);
+
+    renderFavorites();
     renderSavedLists();
     updateInstallBtn();
-  });
+    searchInput.focus();
+  }
 
   function renderSavedLists() {
     if (savedLists.length === 0) {
@@ -183,7 +211,10 @@
     savedListsEl.innerHTML = savedLists.map((list, i) => `
       <div class="saved-list-chip">
         <span class="chip-info">${escapeHtml(list.label || `List ${i + 1}`)}<span class="chip-meta">${list.shows.length} show${list.shows.length === 1 ? '' : 's'} · ${list.topPercent === 100 ? 'all episodes' : `top ${list.topPercent}%`}</span></span>
-        <button type="button" class="btn-remove" data-index="${i}">✕ Remove</button>
+        <span class="chip-actions">
+          <button type="button" class="btn-edit" data-index="${i}">✏️ Edit</button>
+          <button type="button" class="btn-remove" data-index="${i}">✕ Remove</button>
+        </span>
       </div>`).join('');
   }
 
