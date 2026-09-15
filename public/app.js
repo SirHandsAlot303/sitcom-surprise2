@@ -220,8 +220,47 @@
 
   function escapeHtml(str) { if (!str) return ''; return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;'); }
 
-  // Load default examples if empty
-  (function loadDefaults() {
+  function base64UrlDecodeUtf8(str) {
+    const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = b64 + '='.repeat((4 - (b64.length % 4)) % 4);
+    return decodeURIComponent(escape(atob(padded)));
+  }
+
+  // If this page was opened as <base>/<config>/configure (Stremio's
+  // "Configure" button on an already-installed addon does this), load the
+  // existing lists back into the builder instead of starting blank.
+  function loadFromUrl() {
+    const match = window.location.pathname.match(/^\/([^/]+)\/configure\/?$/);
+    if (!match) return false;
+    try {
+      const raw = JSON.parse(base64UrlDecodeUtf8(match[1]));
+      const lists = Array.isArray(raw.lists) ? raw.lists : [raw];
+      if (lists.length === 0) return false;
+
+      // All but the last saved list go straight into "saved lists";
+      // the last one becomes the active list you're editing.
+      savedLists = lists.slice(0, -1).map(l => ({
+        label: l.label || '', shows: l.shows || [], topPercent: l.topPercent || 100,
+      }));
+      const active = lists[lists.length - 1];
+      favorites.clear();
+      for (const s of (active.shows || [])) favorites.set(s.id, { id: s.id, name: s.name, poster: '' });
+      labelInput.value = active.label || '';
+      setTopPercent(active.topPercent === 100 ? null : active.topPercent, active.topPercent === 100);
+
+      renderFavorites();
+      renderSavedLists();
+      updateInstallBtn();
+      return true;
+    } catch (e) {
+      console.warn('Could not load existing config from URL:', e);
+      return false;
+    }
+  }
+
+  // Load default examples only if there was nothing to restore from the URL
+  (function init() {
+    if (loadFromUrl()) return;
     if (favorites.size === 0) {
       for (const s of DEFAULT_SHOWS) favorites.set(s.id, s);
       renderFavorites(); updateInstallBtn();
