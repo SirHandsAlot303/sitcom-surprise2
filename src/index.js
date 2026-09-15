@@ -68,6 +68,14 @@ app.use('/configure', express.static(path.join(__dirname, '..', 'public')));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.get('/', (req, res) => res.redirect('/configure'));
 
+// Stremio's "Configure" button on an installed addon opens
+// <base>/<config>/configure (it derives this from the manifest URL).
+// Without this route that 404'd — which is why editing an already-
+// installed addon's lists appeared broken / lost.
+app.get('/:config/configure', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+});
+
 app.param('config', (req, res, next, configParam) => {
   if (configParam === 'default') {
     req.addonConfig = DEFAULT_CFG;
