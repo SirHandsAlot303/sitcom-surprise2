@@ -77,6 +77,9 @@ input:focus{border-color:rgba(139,92,246,.5);box-shadow:0 0 0 2px var(--accent-g
 .saved-list-chip .chip-info{font-weight:500}
 .saved-list-chip .chip-meta{color:var(--muted);font-weight:400;font-size:.85rem;margin-left:.5rem}
 .saved-list-chip .btn-remove{width:auto;padding:.4rem .8rem;border-radius:var(--r-sm)}
+.saved-list-chip .chip-actions{display:flex;gap:.5rem;flex-shrink:0}
+.btn-edit{width:auto;padding:.4rem .8rem;border-radius:var(--r-sm);border:none;font-family:inherit;font-size:.8rem;font-weight:600;cursor:pointer;transition:all .2s;background:rgba(59,130,246,.15);color:#93c5fd}
+.btn-edit:hover{background:rgba(59,130,246,.3)}
 @keyframes fadeIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:480px){
 .container{padding:1rem}
